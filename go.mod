@@ -1,4 +1,4 @@
-module federated
+module federated-learning-lib
 
 go 1.17
 
