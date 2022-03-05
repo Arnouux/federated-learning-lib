@@ -1,4 +1,4 @@
-package neural
+package github.com/Arnouux/federated-learning-lib
 
 import (
 	"errors"
