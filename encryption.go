@@ -1,4 +1,4 @@
-package encryption
+package github.com/Arnouux/federated-learning-lib
 
 import (
 	"crypto/sha256"
