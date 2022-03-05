@@ -1,9 +1,6 @@
 package node
 
 import (
-	"federated/encryption"
-	"federated/neural"
-	"federated/transport"
 	"fmt"
 
 	"github.com/ldsec/lattigo/v2/ckks"
@@ -11,15 +8,15 @@ import (
 
 type Node struct {
 	// transport
-	Socket  transport.Socket
-	Packets []transport.Packet
+	Socket  Socket
+	Packets []Packet
 
 	// encryption
-	encryption.Client
-	encryption.Server
+	Client
+	Server
 
 	// neural
-	neural.NeuralNetwork
+	NeuralNetwork
 
 	// Node
 	StopChan chan bool
@@ -27,11 +24,11 @@ type Node struct {
 
 func Create() Node {
 	n := Node{
-		Packets: make([]transport.Packet, 0),
-		Client:  encryption.NewClient(),
-		Server:  encryption.NewServer(),
+		Packets: make([]Packet, 0),
+		Client:  NewClient(),
+		Server:  NewServer(),
 	}
-	s, err := transport.CreateSocket()
+	s, err := CreateSocket()
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -66,7 +63,7 @@ func (n *Node) Start() error {
 			}
 
 			// Not saving ACk packets
-			if pkt.Type != transport.Ack {
+			if pkt.Type != Ack {
 				// TODO save packets per types ?
 				n.OnReceive(pkt)
 			}
@@ -77,10 +74,10 @@ func (n *Node) Start() error {
 }
 
 func (n *Node) Join(server string) error {
-	pktJoin := transport.Packet{
+	pktJoin := Packet{
 		Source:      n.Socket.GetAddress(),
 		Destination: server,
-		Type:        transport.Join,
+		Type:        Join,
 	}
 	err := n.Socket.Send(server, pktJoin)
 	if err != nil {
@@ -97,15 +94,15 @@ func (n *Node) SendWeights(server string, asResult bool) error {
 	n.Encoder.EncodeCoeffs(weights, plaintext)
 
 	ciphertext := n.Encryptor.EncryptNew(plaintext)
-	cipher := encryption.MarshalToBase64String(ciphertext)
+	cipher := MarshalToBase64String(ciphertext)
 
 	var t string
 	if asResult {
-		t = transport.Result
+		t = Result
 	} else {
-		t = transport.EncryptedChunk
+		t = EncryptedChunk
 	}
-	pkt := transport.Packet{
+	pkt := Packet{
 		Source:      n.Socket.GetAddress(),
 		Destination: server,
 		Message:     cipher,
@@ -124,16 +121,16 @@ func (n *Node) StartLearning() {
 }
 
 // Handler of packet
-func (n *Node) OnReceive(pkt transport.Packet) error {
+func (n *Node) OnReceive(pkt Packet) error {
 
 	switch pkt.Type {
 	case "":
 		// For testing purpose
 		n.Packets = append(n.Packets, pkt)
-	case transport.Join:
+	case Join:
 		// if first join
 		if w := n.GetWeights(); len(w) == 0 {
-			n.NeuralNetwork = neural.CreateNetwork(4, 1, 1, 5, 0.01)
+			n.NeuralNetwork = CreateNetwork(4, 1, 1, 5, 0.01)
 			n.InitiateWeights()
 		}
 
@@ -142,26 +139,26 @@ func (n *Node) OnReceive(pkt transport.Packet) error {
 		n.Packets = append(n.Packets, pkt)
 
 		// To send hyperparams
-		params := transport.Parameters{
+		params := Parameters{
 			InputDimensions:    4,
 			OutputDimensions:   1,
 			NbLayers:           1,
 			NbNeurons:          5,
 			LearningRate:       0.01,
 			NbIterations:       5,
-			ActivationFunction: neural.SigmoidFunc,
+			ActivationFunction: SigmoidFunc,
 			BatchSize:          64,
 		}
-		pktParams := transport.Packet{
+		pktParams := Packet{
 			Source:      n.Socket.GetAddress(),
 			Destination: pkt.Source,
 			Params:      params,
-			Type:        transport.Params,
+			Type:        Params,
 		}
 		n.Socket.Send(pkt.Source, pktParams)
-	case transport.Params:
+	case Params:
 		n.Packets = append(n.Packets, pkt)
-		n.NeuralNetwork = neural.CreateNetwork(
+		n.NeuralNetwork = CreateNetwork(
 			pkt.Params.InputDimensions,
 			pkt.Params.OutputDimensions,
 			pkt.Params.NbLayers,
@@ -169,25 +166,25 @@ func (n *Node) OnReceive(pkt transport.Packet) error {
 			pkt.Params.LearningRate,
 		)
 		n.InitiateWeights()
-	case transport.EncryptedChunk:
+	case EncryptedChunk:
 		n.Packets = append(n.Packets, pkt)
-	case transport.Result:
+	case Result:
 		n.Packets = append(n.Packets, pkt)
 		cipher := ckks.NewCiphertext(n.Params, 1, 1, 0.01)
-		encryption.UnmarshalFromBase64(cipher, pkt.Message)
+		UnmarshalFromBase64(cipher, pkt.Message)
 		coeffs := n.DecodeCoeffs(n.DecryptNew(cipher))
 		n.SetWeights(coeffs)
 	}
 
 	// TODO generalize to n participants
 	// If 2 packets -> Calculations + Send back
-	if len(n.GetPacketsByType(transport.EncryptedChunk)) >= len(n.Server.Participants) && len(n.Server.Participants) > 0 {
+	if len(n.GetPacketsByType(EncryptedChunk)) >= len(n.Server.Participants) && len(n.Server.Participants) > 0 {
 		fmt.Println("Server calculations on", len(n.Server.Participants), "polynomes")
-		encryptedPkts := n.GetPacketsByType(transport.EncryptedChunk)
+		encryptedPkts := n.GetPacketsByType(EncryptedChunk)
 		cipherText1 := new(ckks.Ciphertext)
 		cipherText2 := new(ckks.Ciphertext)
-		encryption.UnmarshalFromBase64(cipherText1, encryptedPkts[0].Message)
-		encryption.UnmarshalFromBase64(cipherText2, encryptedPkts[1].Message)
+		UnmarshalFromBase64(cipherText1, encryptedPkts[0].Message)
+		UnmarshalFromBase64(cipherText2, encryptedPkts[1].Message)
 		n.Server.Responses = append(n.Server.Responses, cipherText1)
 		n.Server.Responses = append(n.Server.Responses, cipherText2)
 
@@ -198,15 +195,15 @@ func (n *Node) OnReceive(pkt transport.Packet) error {
 		n.Server.Result = n.Server.MultByConstNew(adds, 0.5)
 
 		// Results
-		resultsCipher := encryption.MarshalToBase64String(n.Server.Result)
+		resultsCipher := MarshalToBase64String(n.Server.Result)
 
 		// Send // Multicast
 		for _, p := range encryptedPkts {
-			pktResult := transport.Packet{
+			pktResult := Packet{
 				Source:      n.Socket.GetAddress(),
 				Destination: p.Source,
 				Message:     resultsCipher,
-				Type:        transport.Result,
+				Type:        Result,
 			}
 
 			go n.Socket.Send(p.Source, pktResult)
@@ -219,8 +216,8 @@ func (n *Node) OnReceive(pkt transport.Packet) error {
 	return nil
 }
 
-func (n *Node) GetPacketsByType(t string) []transport.Packet {
-	pkts := make([]transport.Packet, 0)
+func (n *Node) GetPacketsByType(t string) []Packet {
+	pkts := make([]Packet, 0)
 	for _, p := range n.Packets {
 		if p.Type == t {
 			pkts = append(pkts, p)
