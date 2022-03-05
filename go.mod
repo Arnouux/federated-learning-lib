@@ -1,4 +1,4 @@
-module federated-learning-lib
+module github.com/Arnouux/federated-learning-lib
 
 go 1.17
 
