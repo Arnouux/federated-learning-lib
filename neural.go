@@ -1,4 +1,4 @@
-package github.com/Arnouux/federated-learning-lib
+package federated
 
 import (
 	"errors"
