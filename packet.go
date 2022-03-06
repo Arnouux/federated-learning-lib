@@ -1,4 +1,4 @@
-package transport
+package federated
 
 type Packet struct {
 	Source      string
