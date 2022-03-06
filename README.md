@@ -5,8 +5,36 @@ Using multiparty learning and homomorphic encryption, in Go.
 The library aims at creating a network of nodes sharing neural network's parameters (weights) between them without sharing them own dataset. Moreover, fully homomorphic encryption is used to limit the access of the server receiving the weights and not let a white-box attack happen.
 
 ## 2. How to use ?
-You can get inspiration by reading the tests file `test/federated_test.go`.
-In any case, you will need to instanciate nodes with `node.CreateAndStart()` and make them connect and send data to a server node.
+You can get inspiration by reading the tests file `test/federated_test.go`. Below is a very basic setup example
+In any case, you will need to instanciate nodes and make them connect and send data to a server node.
+
+In your project root directory:
+`go get github.com/Arnouux/federated-learning-lib`
+After that, the library is importable and usable such as:
+
+```
+package main
+
+import (
+	fl "github.com/Arnouux/federated-learning-lib"
+)
+
+func main() {
+	node := fl.Create()
+	node.Start()
+
+	server := fl.Create()
+	server.Start()
+
+	// ** //
+
+	node.Join(server.Socket.GetAddress())
+
+	// ** //
+
+	server.StartLearning()
+}
+```
 
 ## 3. Todo list
 - [x] send HE messages
