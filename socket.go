@@ -1,4 +1,4 @@
-package transport
+package federated
 
 import (
 	"encoding/json"
